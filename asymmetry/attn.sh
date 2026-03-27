@@ -12,13 +12,14 @@ export PYTHONPATH="/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm:$PYTHO
    MODEL_PATH="/home/cyj/weight/DSV2LiteWeight"
 
    # 跨机通信配置 - Attention服务器作为主节点
-   MASTER_ADDR="90.90.97.37"  # 主节点IP（当前机器IP）
+   MASTER_ADDR="80.48.33.145"  # 主节点IP（当前机器IP）
    MASTER_PORT="29500"
-   NETWORK_INTERFACE="enp194s0f0"  # 网络接口名
+   NETWORK_INTERFACE="enp209s0f3"  # 网络接口名
    BSIZE=40
 
    AFD_SIZE="8A8F"
    NUM_DEVICES=8
+   UBATCH_SIZE=2
    # 解析命令行参数
    usage() {
        echo "用法: $0 [-d DEVICES] [-p PORT] [-a AFD_PORT] [-l LOG_DIR] [-m MASTER_ADDR] [-t MASTER_PORT] [-i INTERFACE] [-h]"
@@ -34,7 +35,7 @@ export PYTHONPATH="/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm:$PYTHO
        exit 1
    }
 
-   while getopts "d:p:a:l:m:t:i:s:n:c:h" opt; do
+   while getopts "d:p:a:l:m:t:i:s:n:c:u:h" opt; do
        case $opt in
            d) DEVICES="$OPTARG" ;;
            p) PORT="$OPTARG" ;;
@@ -46,6 +47,7 @@ export PYTHONPATH="/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm:$PYTHO
            s) BSIZE="$OPTARG" ;;
            n) NUM_DEVICES="$OPTARG" ;;
            c) AFD_SIZE="$OPTARG" ;;
+           u) UBATCH_SIZE="$OPTARG" ;;
            h) usage ;;
            \?) echo "无效选项: -$OPTARG" >&2; usage ;;
            :) echo "选项 -$OPTARG 需要参数" >&2; usage ;;
@@ -87,7 +89,7 @@ export PYTHONPATH="/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm:$PYTHO
    # nohup vllm serve "$MODEL_PATH" \
    # nohup python -m debugpy --listen 56306 --wait-for-client $(which vllm) serve "$MODEL_PATH"
    COMPILATION_CONFIG='{"cudagraph_mode": "FULL_DECODE_ONLY", "cudagraph_capture_sizes": ['$BSIZE']}'
-   echo "BSIZE:$BSIZE NUM_DEVICES:$NUM_DEVICES PORT:$PORT"
+   echo "BSIZE:$BSIZE"
    vllm serve "$MODEL_PATH" \
        --data-parallel-size $NUM_DEVICES \
        --max_num_batched_tokens $BSIZE \
@@ -99,11 +101,11 @@ export PYTHONPATH="/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm:$PYTHO
        --seed 1024 \
        --port "$PORT" \
        --max-model-len 8192 \
-       --enable-dbo \
        --dbo-prefill-token-threshold 12 \
        --dbo-decode-token-threshold 2 \
-       --ubatch-size 2 \
+       --ubatch-size $UBATCH_SIZE \
        --afd-config "$AFD_CONFIG" \
+       --async-scheduling \
        --additional-config '{"enable_force_load_balance": "True"}' \
        --kv-transfer-config '{
            "kv_connector": "DecodeBenchConnector",
@@ -114,4 +116,3 @@ export PYTHONPATH="/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm:$PYTHO
            }
        }' \
      2>&1  > "$LOG_FILE"
-
