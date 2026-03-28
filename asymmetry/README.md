@@ -15,7 +15,6 @@ common:
   master_port: "29500"                   # 主节点端口
   network_interface: "enp209s0f3"        # 网卡名称
   afd_port: 29666                        # AFD通信端口
-  expert_per_rank: [8, 4, 4]             # 每rank专家数数组 (会遍历测试)
 
 # 基准测试参数
 benchmark:
@@ -49,7 +48,7 @@ ais_bench:
 ```
 benchmark_results/
 ├── global_summary.csv                         # 全局汇总CSV
-└── BSIZE_24_12A4F_E8_20240328_120000/         # 单次测试结果 (含expert_per_rank)
+└── BSIZE_24_12A4F_UB2_IN4096_20240328_120000/ # 单次测试结果
     ├── result.yaml                            # 单次测试结果YAML
     ├── summary.txt                            # 文本格式报告
     ├── log/
@@ -81,7 +80,6 @@ test_config:
   ubatch_size: 2                    # micro batch size
   attn_cnt: 12                      # attention卡数
   ffn_cnt: 4                        # ffn卡数
-  expert_per_rank: 8                # 每rank专家数
   global_batch_size: 288            # 全局batch size = dp * batch_size
   data_multiplier: 16               # 数据量倍数
 
@@ -178,7 +176,7 @@ metrics:
 
 4. **多组测试**
    - `attn_arr` 和 `ffn_arr` 数组长度必须相同
-   - 会遍历 `bsize_list x attn/ffn pairs x input_list x ubatch_list x expert_per_rank` 所有组合
+   - 会遍历 `bsize_list x attn/ffn pairs x input_list x ubatch_list` 所有组合
 
 ---
 
@@ -197,10 +195,6 @@ benchmark:
 # 只测试短输入
 benchmark:
   input_list: "4096 8192"
-
-# 测试不同的 expert_per_rank 值
-common:
-  expert_per_rank: [8, 4]    # 会遍历 expert_per_rank=8 和 expert_per_rank=4
 ```
 
 修改后直接运行 `./run_auto_benchmark.sh` 即可。

@@ -43,11 +43,10 @@ AFD_SIZE="8A8F"
 NUM_DEVICES=8
 UBATCH_SIZE=2
 MAX_MODEL_LEN=8192
-EXPERT_PER_RANK=8
 
 # 解析命令行参数 (可覆盖YAML配置)
 usage() {
-    echo "用法: $0 [-d DEVICES] [-p PORT] [-a AFD_PORT] [-l LOG_DIR] [-m MASTER_ADDR] [-t MASTER_PORT] [-i INTERFACE] [-M MAX_MODEL_LEN] [-e EXPERT_PER_RANK] [-h]"
+    echo "用法: $0 [-d DEVICES] [-p PORT] [-a AFD_PORT] [-l LOG_DIR] [-m MASTER_ADDR] [-t MASTER_PORT] [-i INTERFACE] [-M MAX_MODEL_LEN] [-h]"
     echo "  参数:"
     echo "    -d DEVICES         使用的卡号（必填）"
     echo "    -p PORT            HTTP服务端口（默认: $ATTN_PORT）"
@@ -57,12 +56,11 @@ usage() {
     echo "    -t MASTER_PORT     主节点端口（默认: $MASTER_PORT）"
     echo "    -i INTERFACE       网络接口名（默认: $NETWORK_INTERFACE）"
     echo "    -M MAX_MODEL_LEN   最大模型长度（默认: 8192）"
-    echo "    -e EXPERT_PER_RANK 每rank专家数（默认: 8）"
     echo "    -h                 显示帮助信息"
     exit 1
 }
 
-while getopts "d:p:a:l:m:t:i:s:n:c:u:M:e:h" opt; do
+while getopts "d:p:a:l:m:t:i:s:n:c:u:M:h" opt; do
     case $opt in
         d) DEVICES="$OPTARG" ;;
         p) PORT="$OPTARG" ;;
@@ -76,7 +74,6 @@ while getopts "d:p:a:l:m:t:i:s:n:c:u:M:e:h" opt; do
         c) AFD_SIZE="$OPTARG" ;;
         u) UBATCH_SIZE="$OPTARG" ;;
         M) MAX_MODEL_LEN="$OPTARG" ;;
-        e) EXPERT_PER_RANK="$OPTARG" ;;
         h) usage ;;
         \?) echo "无效选项: -$OPTARG" >&2; usage ;;
         :) echo "选项 -$OPTARG 需要参数" >&2; usage ;;
@@ -110,7 +107,7 @@ AFD_CONFIG='{
   "afd_extra_config": {
     "afd_size": "'$AFD_SIZE'"
   },
-  "compute_gate_on_attention": "True",
+  "compute_gate_on_attention": "False",
   "afd_port": "'"$AFD_PORT"'"
 }'
 echo "AFD_CONFIG:$AFD_CONFIG"
@@ -118,7 +115,6 @@ echo "AFD_CONFIG:$AFD_CONFIG"
 COMPILATION_CONFIG='{"cudagraph_mode": "FULL_DECODE_ONLY", "cudagraph_capture_sizes": ['$BSIZE']}'
 echo "BSIZE:$BSIZE"
 echo "MAX_MODEL_LEN:$MAX_MODEL_LEN"
-echo "EXPERT_PER_RANK:$EXPERT_PER_RANK"
 
 # 启动attention服务器
 vllm serve "$MODEL_PATH" \
@@ -137,7 +133,6 @@ vllm serve "$MODEL_PATH" \
     --ubatch-size $UBATCH_SIZE \
     --afd-config "$AFD_CONFIG" \
     --async-scheduling \
-    --additional-config "{\"enable_force_load_balance\": \"True\", \"force_load_balance_topn_per_rank\": $EXPERT_PER_RANK}" \
     --kv-transfer-config '{
         "kv_connector": "DecodeBenchConnector",
         "kv_role": "kv_both",

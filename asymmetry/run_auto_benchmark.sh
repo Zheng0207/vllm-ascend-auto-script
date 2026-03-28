@@ -20,7 +20,6 @@ DATA_MULTIPLIER="$BENCHMARK_DATA_MULTIPLIER"
 # 数组参数 (需要特殊处理)
 read -ra ATTN_ARR <<< "$BENCHMARK_ATTN_ARR"
 read -ra FFN_ARR <<< "$BENCHMARK_FFN_ARR"
-read -ra EXPERT_PER_RANK_ARR <<< "$EXPERT_PER_RANK_LIST"
 
 # ais_bench配置
 CONFIG_PY="$AIS_BENCH_CONFIG_PY"
@@ -48,7 +47,6 @@ show_config() {
     log "  BSIZE_LIST: $BSIZE_LIST"
     log "  ATTN_ARR: ${ATTN_ARR[*]}"
     log "  FFN_ARR: ${FFN_ARR[*]}"
-    log "  EXPERT_PER_RANK_ARR: ${EXPERT_PER_RANK_ARR[*]}"
     log "  INPUT_LIST: $INPUT_LIST"
     log "  UBATCH_LIST: $UBATCH_LIST"
     log "  START_DEVICE: $START_DEVICE"
@@ -93,7 +91,6 @@ archive_scenario() {
     local attn=$6
     local ffn=$7
     local max_model_len=$8
-    local expert_per_rank=$9
 
     local script_dir="${run_dir}/script"
     local log_dir="${run_dir}/log"
@@ -106,14 +103,13 @@ archive_scenario() {
 
     cat > "${script_dir}/run_params.txt" << PARAMS_EOF
 Run Timestamp: $(date)
-Test Scenario: BSIZE=${bsize}, ubatch_size=${ubatch_size}, attn=${attn}, ffn=${ffn}, expert_per_rank=${expert_per_rank}
+Test Scenario: BSIZE=${bsize}, ubatch_size=${ubatch_size}, attn=${attn}, ffn=${ffn}
 Calculated Parameters:
   - Per Card Batch Size (BSIZE): $bsize
   - Warmup Request Count: $WARMUP_REQUEST_COUNT
   - Formal Request Count: $req_count
   - Formal Max Out Len: $FORMAL_MAX_OUT_LEN
   - Max Model Len: $max_model_len (input_len + 3 * output_len)
-  - Expert Per Rank: $expert_per_rank
   - Data Multiplier: $DATA_MULTIPLIER
 Directory Structure:
   - script/: Configuration snapshots & params
@@ -211,7 +207,6 @@ generate_result_yaml() {
     local out_token_thr=${20}
     local thr_per_die=${21}
     local max_model_len=${22}
-    local expert_per_rank=${23}
 
     cat > "$yaml_file" << YAML_EOF
 # ==============================================================================
@@ -225,7 +220,6 @@ test_config:
   ubatch_size: $ubatch_size
   attn_cnt: $attn_cnt
   ffn_cnt: $ffn_cnt
-  expert_per_rank: $expert_per_rank
   global_batch_size: $global_batch
   data_multiplier: $data_mult
 
@@ -261,7 +255,7 @@ show_config
 mkdir -p "$ARCHIVE_ROOT"
 
 if [ ! -f "$GLOBAL_SUMMARY" ]; then
-    echo "Timestamp,Run_Dir,BSIZE,DP,Total_Batch_Size,Request_Count,Status,OutTokenThru(token/s),ATTN_CNT,FFN_CNT,EXPERT_PER_RANK,TPOT_AVG,TPOT_MIN,TPOT_MAX,TPOT_MED,TPOT_P75,TPOT_P90,TPOT_P99,THROUGHPUT_PER_DIE" > "$GLOBAL_SUMMARY"
+    echo "Timestamp,Run_Dir,BSIZE,DP,Total_Batch_Size,Request_Count,Status,OutTokenThru(token/s),ATTN_CNT,FFN_CNT,TPOT_AVG,TPOT_MIN,TPOT_MAX,TPOT_MED,TPOT_P75,TPOT_P90,TPOT_P99,THROUGHPUT_PER_DIE" > "$GLOBAL_SUMMARY"
 fi
 
 NUM_PAIRS=${#ATTN_ARR[@]}
@@ -269,10 +263,9 @@ for BSIZE in $BSIZE_LIST; do
     for (( i=0; i<$NUM_PAIRS; i++ )); do
         for INPUT_LEN in $INPUT_LIST; do
             for UBATCH_SIZE in $UBATCH_LIST; do
-                for EXPERT_PER_RANK in "${EXPERT_PER_RANK_ARR[@]}"; do
                 ATTN=${ATTN_ARR[$i]}
                 FFN=${FFN_ARR[$i]}
-                log "配置中: B=$BSIZE, A=$ATTN, F=$FFN, E=$EXPERT_PER_RANK"
+                log "配置中: B=$BSIZE, A=$ATTN, F=$FFN"
 
                 cleanup_vllm
 
@@ -285,7 +278,7 @@ for BSIZE in $BSIZE_LIST; do
                 log "MAX_MODEL_LEN: $MAX_MODEL_LEN (input=$INPUT_LEN + 3*output=$FORMAL_MAX_OUT_LEN)"
 
                 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-                RUN_DIR="${ARCHIVE_ROOT}/BSIZE_${BSIZE}_${ATTN}A${FFN}F_UB${UBATCH_SIZE}_IN${INPUT_LEN}_E${EXPERT_PER_RANK}_${TIMESTAMP}"
+                RUN_DIR="${ARCHIVE_ROOT}/BSIZE_${BSIZE}_${ATTN}A${FFN}F_UB${UBATCH_SIZE}_IN${INPUT_LEN}_${TIMESTAMP}"
 
                 # 计算 FFN 的设备字符串
                 FFN_START=$((START_DEVICE))
@@ -300,10 +293,10 @@ for BSIZE in $BSIZE_LIST; do
                 AFD_SIZE="${ATTN}A${FFN}F"
 
                 log "启动后端服务..."
-                bash "${SCRIPT_DIR}/attn.sh" -d "$ATTN_DEVICES" -s $BSIZE -l "${RUN_DIR}/log" -n $ATTN -c $AFD_SIZE -u $UBATCH_SIZE -M $MAX_MODEL_LEN -e $EXPERT_PER_RANK &
+                bash "${SCRIPT_DIR}/attn.sh" -d "$ATTN_DEVICES" -s $BSIZE -l "${RUN_DIR}/log" -n $ATTN -c $AFD_SIZE -u $UBATCH_SIZE -M $MAX_MODEL_LEN &
                 PID_ATT=$!
 
-                bash "${SCRIPT_DIR}/ffn.sh" -d "$FFN_DEVICES" -s $BSIZE -l "${RUN_DIR}/log" -n $FFN -c $AFD_SIZE -u $UBATCH_SIZE -M $MAX_MODEL_LEN -e $EXPERT_PER_RANK &
+                bash "${SCRIPT_DIR}/ffn.sh" -d "$FFN_DEVICES" -s $BSIZE -l "${RUN_DIR}/log" -n $FFN -c $AFD_SIZE -u $UBATCH_SIZE -M $MAX_MODEL_LEN &
                 PID_FFN=$!
 
                 log "等待服务启动 (90秒)..."
@@ -339,7 +332,7 @@ for BSIZE in $BSIZE_LIST; do
                     continue
                 fi
 
-                archive_scenario "$RUN_DIR" "$BSIZE" "$batch_size_value" "$target_count" "$UBATCH_SIZE" "$ATTN" "$FFN" "$MAX_MODEL_LEN" "$EXPERT_PER_RANK"
+                archive_scenario "$RUN_DIR" "$BSIZE" "$batch_size_value" "$target_count" "$UBATCH_SIZE" "$ATTN" "$FFN" "$MAX_MODEL_LEN"
 
                 FORMAL_LOG="${RUN_DIR}/log/benchmark.log"
                 log "运行 ais_bench..."
@@ -369,9 +362,9 @@ for BSIZE in $BSIZE_LIST; do
                     "$WARMUP_REQUEST_COUNT" "$target_count" \
                     "$TPOT_AVG" "$TPOT_MIN" "$TPOT_MAX" "$TPOT_MED" \
                     "$TPOT_P75" "$TPOT_P90" "$TPOT_P99" \
-                    "$OUT_THRU_VAL" "$THROUGHPUT_PER_DIE" "$MAX_MODEL_LEN" "$EXPERT_PER_RANK"
+                    "$OUT_THRU_VAL" "$THROUGHPUT_PER_DIE" "$MAX_MODEL_LEN"
 
-                echo "$(date +%Y-%m-%d_%H:%M:%S),${RUN_DIR},$BSIZE,$DP,$batch_size_value,$target_count,$STATUS,$OUT_THRU_VAL,$ATTN,$FFN,$EXPERT_PER_RANK,$TPOT_AVG,$TPOT_MIN,$TPOT_MAX,$TPOT_MED,$TPOT_P75,$TPOT_P90,$TPOT_P99,$THROUGHPUT_PER_DIE" >> "$GLOBAL_SUMMARY"
+                echo "$(date +%Y-%m-%d_%H:%M:%S),${RUN_DIR},$BSIZE,$DP,$batch_size_value,$target_count,$STATUS,$OUT_THRU_VAL,$ATTN,$FFN,$TPOT_AVG,$TPOT_MIN,$TPOT_MAX,$TPOT_MED,$TPOT_P75,$TPOT_P90,$TPOT_P99,$THROUGHPUT_PER_DIE" >> "$GLOBAL_SUMMARY"
 
                 log "测试完成。耗时: ${DURATION}s"
                 log "结果摘要:"
@@ -447,7 +440,6 @@ for BSIZE in $BSIZE_LIST; do
 
                 log "冷却 10 秒..."
                 sleep 10
-                done
             done
         done
     done
