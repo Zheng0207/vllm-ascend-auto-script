@@ -1,0 +1,105 @@
+# ==============================================================================
+# vLLM Ascend 自动化基准测试配置文件
+# ==============================================================================
+# 修改此文件后运行脚本即可，无需修改脚本代码
+
+# ------------------------------------------------------------------------------
+# 通用配置 (attn.sh 和 ffn.sh 共用)
+# ------------------------------------------------------------------------------
+common:
+  # 模型路径
+  model_path: "/home/cyj/weight/DSV2LiteWeight"
+  # 日志根目录
+  log_dir: "/home/cyj/run_vllm_v13/log"
+  # 网络配置
+  master_addr: "80.48.33.145"
+  master_port: "29500"
+  network_interface: "enp209s0f3"
+  # AFD通信端口
+  afd_port: 29666
+  # 专家并行配置 (支持多个值，会遍历测试)
+  expert_per_rank:
+    - 8
+    - 4
+    - 4
+
+# ------------------------------------------------------------------------------
+# Attention 服务配置 (attn.sh)
+# ------------------------------------------------------------------------------
+attention:
+  # HTTP服务端口
+  port: 8006
+
+# ------------------------------------------------------------------------------
+# 性能分析器配置
+# ------------------------------------------------------------------------------
+profiler:
+  # Model Runner Profiler
+  model_runner:
+    enable: 1
+    wait: 2
+    warmup: 1
+    active: 10
+    repeat: 1
+    skip_first: 1500
+    dir: "/home/cyj/run_vllm_v13/profile"
+  # FFN Profiler
+  ffn:
+    enable: 1
+    wait: 2
+    warmup: 1
+    active: 20
+    repeat: 1
+    skip_first: 1500
+    dir: "/home/cyj/run_vllm_v13/ffn_prof"
+
+# ------------------------------------------------------------------------------
+# 环境配置
+# ------------------------------------------------------------------------------
+environment:
+  pythonpath: "/home/cyj/code/v13/vllm-ascend:/home/cyj/code/v13/vllm"
+  hccl_buffsize: 2048
+  ascend_toolkit_path: "/usr/local/Ascend/ascend-toolkit/latest/opp/vendors/CAM/bin/set_env.bash"
+
+# ------------------------------------------------------------------------------
+# 基准测试配置 (run_auto_benchmark.sh)
+# ------------------------------------------------------------------------------
+benchmark:
+  # batch size 列表
+  bsize_list: "24 32 40 48 80 96"
+  # attention 卡数数组
+  attn_arr:
+    - 12
+    - 8
+    - 4
+  # ffn 卡数数组
+  ffn_arr:
+    - 4
+    - 4
+    - 4
+  # 输入长度列表
+  input_list: "4096 8192 16384 32768 65536 131072"
+  # micro batch size 列表
+  ubatch_list: "2 3"
+  # 数据量倍数
+  data_multiplier: 16
+  # 起始设备号
+  start_device: 0
+
+# ------------------------------------------------------------------------------
+# ais_bench 配置
+# ------------------------------------------------------------------------------
+ais_bench:
+  config_py: "/home/cyj/code/benchmark/ais_bench/datasets/synthetic/synthetic_config.py"
+  model_py: "/home/cyj/code/benchmark/ais_bench/benchmark/configs/models/vllm_api/vllm_api_stream_chat.py"
+  # 预热配置
+  warmup_request_count: 1536
+  warmup_max_out_len: 2
+  # 正式测试配置
+  formal_max_out_len: 1024
+
+# ------------------------------------------------------------------------------
+# Profile 解析配置
+# ------------------------------------------------------------------------------
+profile:
+  parser_script: "profileabc.py"
