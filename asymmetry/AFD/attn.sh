@@ -137,7 +137,6 @@ vllm serve "$MODEL_PATH" \
     --ubatch-size $UBATCH_SIZE \
     --afd-config "$AFD_CONFIG" \
     --async-scheduling \
-    --additional-config "{\"enable_force_load_balance\": \"True\", \"force_load_balance_topn_per_rank\": $EXPERT_PER_RANK}" \
     --kv-transfer-config '{
         "kv_connector": "DecodeBenchConnector",
         "kv_role": "kv_both",
