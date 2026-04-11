@@ -1,0 +1,32 @@
+# ============================================================
+# dispatch_gmm_combine_decode Performance Benchmark Config
+# ============================================================
+
+# Model dimensions
+hidden_size: 7168
+intermediate_size: 2048
+expert_num: 64
+top_k: 8
+
+# Parameter matrix - script runs cartesian product of these lists
+batch_sizes: [16, 32, 64, 128, 256]
+ep_world_sizes: [1, 2, 4, 8, 16]
+dtypes: [bfloat16, int8]  # bfloat16: x as bfloat16, int8: x as float16
+
+# Execution
+iterations: 100
+warmup: 10
+with_graph: true
+
+# Profiling
+profile: true
+profile_output_dir: "./bench_results/profile"
+
+# CSV output
+csv_output: "./bench_results/summary.csv"
+
+# Misc
+shared_expert_rank_num: 0
+with_mc2_mask: false
+enable_dynamic_bs: false
+dynamic_eplb: false
