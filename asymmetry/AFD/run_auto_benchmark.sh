@@ -72,15 +72,25 @@ update_configs() {
     local batch_val=$2
     local out_len=$3
     local input_len=$4
-    log "req_count:$1 batch_val:$2 out_len:$3 input_len:$4"
+    local min_out_len=$out_len
+    if [ "$min_out_len" -gt 800 ]; then
+        min_out_len=800
+    fi
+    log "req_count:$1 batch_val:$2 out_len:$3 input_len:$4 min_out_len:$min_out_len"
     sed -i "s/\"RequestCount\":[[:space:]]*[0-9]\+/\"RequestCount\": $req_count/" "$CONFIG_PY"
     sed -i "s/batch_size=[[:space:]]*[0-9]\+/batch_size=$batch_val/" "$MODEL_PY"
     sed -i "s/max_out_len=[[:space:]]*[0-9]\+/max_out_len=$out_len/" "$MODEL_PY"
-    sed -i "s/\"RequestSize\":[[:space:]]*[0-9]\+/\"RequestSize\": $input_len/" "$CONFIG_PY"
+    # sed -i "s/\"RequestSize\":[[:space:]]*[0-9]\+/\"RequestSize\": $input_len/" "$CONFIG_PY"
+    sed -i '/"Input"/,/\}/s/"MaxValue":[[:space:]]*[0-9]\+/"MaxValue": '"$input_len"'/g' "$CONFIG_PY"
+    sed -i '/"Input"/,/\}/s/"MinValue":[[:space:]]*[0-9]\+/"MinValue": '"$input_len"'/g' "$CONFIG_PY"
+    sed -i '/"Output"/,/\}/s/"MaxValue":[[:space:]]*[0-9]\+/"MaxValue": '"$out_len"'/g' "$CONFIG_PY"
+    sed -i '/"Output"/,/\}/s/"MinValue":[[:space:]]*[0-9]\+/"MinValue": '"$min_out_len"'/g' "$CONFIG_PY"
+
     if ! grep -q "\"RequestCount\": $req_count" "$CONFIG_PY"; then
         log "错误：修改 RequestCount 失败"
         return 1
     fi
+
     return 0
 }
 
